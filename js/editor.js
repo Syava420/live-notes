@@ -1,213 +1,245 @@
 // =============================================================================
-// МОДУЛЬ РЕДАКТИРОВАНИЯ И ПРОСМОТРА МЕДИА (js/editor.js)
+// МОДУЛЬ ЭКРАНА РЕДАКТОРА (js/editor.js)
 // =============================================================================
 
-// Модальное окно редактирования заметки
-const editModal = document.getElementById("edit-modal");
-const editorTitle = document.getElementById("editor-title");
-const editorText = document.getElementById("editor-text");
-const editorFolderSelect = document.getElementById("editor-folder-select");
-const editorAttachmentBox = document.getElementById("editor-attachment-box");
-const btnCloseEditor = document.getElementById("btn-close-editor");
+const btnEditorBack = document.getElementById("btn-editor-back");
+const editorSyncStatus = document.getElementById("editor-sync-status");
 const btnEditorTrash = document.getElementById("btn-editor-trash");
-const editorSaveStatus = document.getElementById("editor-save-status");
+const editorFolderSelect = document.getElementById("editor-folder-select");
+const editorTitleInput = document.getElementById("editor-title-input");
+const editorTextInput = document.getElementById("editor-text-input");
+const editorMediaPreview = document.getElementById("editor-media-preview");
 
-// Лайтбокс просмотра картинки
-const lightboxModal = document.getElementById("lightbox-modal");
-const lightboxImage = document.getElementById("lightbox-image");
-const btnDownloadImage = document.getElementById("btn-download-image");
-const btnCloseLightbox = document.getElementById("btn-close-lightbox");
+// Кнопки тулбара редактора
+const inputEditorPhoto = document.getElementById("input-editor-photo");
+const inputEditorAudio = document.getElementById("input-editor-audio");
+const inputEditorFile = document.getElementById("input-editor-file");
+const btnInsertCheckbox = document.getElementById("btn-insert-checkbox");
+const btnEditorUndo = document.getElementById("btn-editor-undo");
+const btnEditorRedo = document.getElementById("btn-editor-redo");
 
-let autoSaveTimer = null;
-let currentLightboxUrl = "";
-let currentLightboxName = "image.jpg";
+let autoSaveTimeout = null;
+let currentAttachment = null;
 
 function initEditorModule() {
   setupEditorEvents();
 }
 
-// Открытие заметки на редактирование
-function openEditModal(noteId) {
-  const note = window.AppState.notes.find((n) => n.id === noteId);
-  if (!note) return;
+// Загрузка заметки в редактор (или создание новой)
+function loadNoteIntoEditor(noteId) {
+  clearTimeout(autoSaveTimeout);
 
-  window.AppState.editingNoteId = noteId;
-  editorTitle.value = note.title || "";
-  editorText.value = note.text || "";
-  if (editorFolderSelect) {
-    editorFolderSelect.value = note.folderId || "";
-  }
-  editorSaveStatus.textContent = "Сохранено";
+  if (!noteId) {
+    // Новая заметка
+    editorTitleInput.value = "";
+    editorTextInput.value = "";
+    currentAttachment = null;
+    editorSyncStatus.textContent = "Новая";
 
-  // Автоподгонка высоты поля текста
-  setTimeout(() => {
-    editorText.style.height = "auto";
-    editorText.style.height = editorText.scrollHeight + "px";
-  }, 10);
-
-  // Отрисовка вложения внутри модалки
-  renderEditorAttachment(note);
-
-  // Если заметка в корзине — меняем текст кнопки
-  if (note.inTrash) {
-    btnEditorTrash.innerHTML = `<span>Восстановить</span>`;
-    btnEditorTrash.title = "Восстановить из корзины";
-  } else {
-    btnEditorTrash.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-    btnEditorTrash.title = "В корзину";
-  }
-
-  editModal.classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
-
-function closeEditModal() {
-  saveCurrentEditNow();
-  editModal.classList.add("hidden");
-  document.body.style.overflow = "";
-  window.AppState.editingNoteId = null;
-}
-
-// Автосохранение при вводе текста с дебаунсом 400мс
-function triggerAutoSave() {
-  editorSaveStatus.textContent = "Сохранение...";
-  clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(() => {
-    saveCurrentEditNow();
-  }, 400);
-}
-
-async function saveCurrentEditNow() {
-  const noteId = window.AppState.editingNoteId;
-  if (!noteId) return;
-
-  const title = editorTitle.value.trim();
-  const text = editorText.value.trim();
-  const folderId = editorFolderSelect?.value || "";
-
-  const updates = {
-    title: title,
-    text: text,
-    folderId: folderId,
-    updatedAt: window.AppState.isFirebaseMode
-      ? firebase.firestore.FieldValue.serverTimestamp()
-      : Date.now()
-  };
-
-  if (window.AppState.isFirebaseMode) {
-    try {
-      await window.AppState.db.collection("notes").doc(noteId).update(updates);
-      editorSaveStatus.textContent = "Сохранено в облако";
-    } catch (e) {
-      console.error("Ошибка автосохранения:", e);
-      editorSaveStatus.textContent = "Ошибка сохранения";
+    // Автовыбор текущей открытой папки
+    if (window.AppState.activeFolderId && window.AppState.activeFolderId !== "all" && window.AppState.activeFolderId !== "trash") {
+      editorFolderSelect.value = window.AppState.activeFolderId;
+    } else {
+      editorFolderSelect.value = "";
     }
-  } else {
-    window.AppState.notes = window.AppState.notes.map((n) =>
-      n.id === noteId ? { ...n, ...updates } : n
-    );
-    localStorage.setItem("keep_notes_local", JSON.stringify(window.AppState.notes));
-    editorSaveStatus.textContent = "Сохранено локально";
-    window.renderFeed?.();
-  }
-}
 
-// Отрисовка вложения в модалке редактирования
-function renderEditorAttachment(note) {
-  editorAttachmentBox.innerHTML = "";
-  if (!note.attachment || !note.attachment.url) {
-    editorAttachmentBox.classList.add("hidden");
+    renderEditorAttachmentView(null);
+    btnEditorTrash.classList.add("hidden");
+    setTimeout(() => editorTextInput.focus(), 150);
     return;
   }
 
-  editorAttachmentBox.classList.remove("hidden");
-  const att = note.attachment;
+  // Редактирование существующей
+  btnEditorTrash.classList.remove("hidden");
+  const note = window.AppState.notes.find((n) => n.id === noteId);
+  if (!note) return;
+
+  editorTitleInput.value = note.title || "";
+  editorTextInput.value = note.text || "";
+  editorFolderSelect.value = note.folderId || "";
+  currentAttachment = note.attachment || null;
+  editorSyncStatus.textContent = "Сохранено";
+
+  renderEditorAttachmentView(currentAttachment);
+}
+
+// Отрисовка превью медиафайла внутри редактора
+function renderEditorAttachmentView(att) {
+  editorMediaPreview.innerHTML = "";
+  if (!att || !att.url) {
+    editorMediaPreview.classList.add("hidden");
+    return;
+  }
+
+  editorMediaPreview.classList.remove("hidden");
 
   if (att.type === "image") {
-    const wrap = document.createElement("div");
-    wrap.className = "editor-media-image-wrap";
-    wrap.innerHTML = `
-      <img src="${att.url}" alt="Вложение" class="editor-img-preview" />
-      <div class="editor-media-actions">
-        <button type="button" class="btn-tool-action" id="btn-zoom-from-editor">🔍 На весь экран / Скачать</button>
-        <button type="button" class="btn-tool-action btn-danger-action" id="btn-delete-attachment">Удалить фото</button>
+    const box = document.createElement("div");
+    box.className = "editor-img-box";
+    box.innerHTML = `
+      <img src="${att.url}" alt="${att.name || 'Фото'}" title="Нажмите для увеличения">
+      <div class="editor-media-toolbar">
+        <button type="button" class="btn-inline-action" id="btn-view-large">🔍 Просмотр / Скачать</button>
+        <button type="button" class="btn-inline-action danger" id="btn-del-img">Удалить</button>
       </div>
     `;
-    wrap.querySelector("#btn-zoom-from-editor").onclick = () => openLightbox(att.url, att.name);
-    wrap.querySelector("#btn-delete-attachment").onclick = () => removeNoteAttachment(note.id);
-    editorAttachmentBox.appendChild(wrap);
+    box.querySelector("img").onclick = () => window.openLightbox?.(att.url, att.name);
+    box.querySelector("#btn-view-large").onclick = () => window.openLightbox?.(att.url, att.name);
+    box.querySelector("#btn-del-img").onclick = () => {
+      currentAttachment = null;
+      renderEditorAttachmentView(null);
+      saveEditorNow();
+    };
+    editorMediaPreview.appendChild(box);
   } else if (att.type === "audio") {
-    const wrap = document.createElement("div");
-    wrap.className = "editor-audio-wrap";
-    wrap.innerHTML = `
-      <audio controls src="${att.url}" style="width: 100%;"></audio>
-      <div class="editor-media-actions" style="margin-top: 8px;">
-        <button type="button" class="btn-tool-action btn-danger-action" id="btn-delete-attachment">Удалить аудио</button>
+    const box = document.createElement("div");
+    box.innerHTML = `
+      <audio controls src="${att.url}" style="width: 100%; margin-top: 6px;"></audio>
+      <div class="editor-media-toolbar">
+        <button type="button" class="btn-inline-action danger" id="btn-del-audio">Удалить аудио</button>
       </div>
     `;
-    wrap.querySelector("#btn-delete-attachment").onclick = () => removeNoteAttachment(note.id);
-    editorAttachmentBox.appendChild(wrap);
+    box.querySelector("#btn-del-audio").onclick = () => {
+      currentAttachment = null;
+      renderEditorAttachmentView(null);
+      saveEditorNow();
+    };
+    editorMediaPreview.appendChild(box);
   } else {
-    const wrap = document.createElement("div");
-    wrap.className = "card-file-box";
-    wrap.innerHTML = `
-      <div class="file-info-group">
-        <svg class="file-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-        <div class="file-details">
-          <span class="card-file-name">${att.name}</span>
-          <span class="card-file-size">${att.size}</span>
+    const box = document.createElement("div");
+    box.className = "card-file-tag";
+    box.style.display = "flex";
+    box.style.justifyContent = "space-between";
+    box.style.padding = "8px 12px";
+    box.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>📦</span>
+        <div>
+          <div style="font-weight: 600;">${att.name}</div>
+          <div style="font-size: 0.75rem; color: #888;">${att.size}</div>
         </div>
       </div>
       <div style="display: flex; gap: 8px;">
-        <a href="${att.url}" download="${att.name}" target="_blank" class="btn-file-download" title="Скачать">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-        </a>
-        <button type="button" class="btn-card-delete" id="btn-delete-attachment" title="Удалить файл">&times;</button>
+        <a href="${att.url}" download="${att.name}" target="_blank" class="btn-inline-action">Скачать</a>
+        <button type="button" class="btn-inline-action danger" id="btn-del-file">&times;</button>
       </div>
     `;
-    wrap.querySelector("#btn-delete-attachment").onclick = () => removeNoteAttachment(note.id);
-    editorAttachmentBox.appendChild(wrap);
+    box.querySelector("#btn-del-file").onclick = () => {
+      currentAttachment = null;
+      renderEditorAttachmentView(null);
+      saveEditorNow();
+    };
+    editorMediaPreview.appendChild(box);
   }
 }
 
-// Удаление вложения из заметки
-async function removeNoteAttachment(noteId) {
-  if (!confirm("Удалить это вложение из заметки?")) return;
+// Прикрепление файла в редакторе
+async function handleAttachFile(file, type) {
+  if (!file) return;
+  editorSyncStatus.textContent = "Обработка файла...";
+
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    currentAttachment = {
+      type: type,
+      name: file.name,
+      size: formatBytes(file.size),
+      url: dataUrl
+    };
+    renderEditorAttachmentView(currentAttachment);
+    saveEditorNow();
+  } catch (err) {
+    console.warn("Файл отменен:", err);
+    editorSyncStatus.textContent = "Ошибка файла";
+  }
+}
+
+// Автосохранение
+function onEditorInput() {
+  editorSyncStatus.textContent = "Печатает...";
+  clearTimeout(autoSaveTimeout);
+  autoSaveTimeout = setTimeout(() => {
+    saveEditorNow();
+  }, 450);
+}
+
+// Мгновенное сохранение
+async function saveEditorNow() {
+  const title = editorTitleInput.value.trim();
+  const text = editorTextInput.value.trim();
+  const folderId = editorFolderSelect.value || "";
+
+  // Если всё пусто — ничего не сохраняем
+  if (!title && !text && !currentAttachment) {
+    return;
+  }
+
+  const payload = {
+    title: title,
+    text: text,
+    folderId: folderId,
+    attachment: currentAttachment,
+    updatedAt: window.AppState.isFirebaseMode ? firebase.firestore.FieldValue.serverTimestamp() : Date.now()
+  };
+
+  const currentId = window.AppState.editingNoteId;
 
   if (window.AppState.isFirebaseMode) {
-    await window.AppState.db.collection("notes").doc(noteId).update({ attachment: null });
+    try {
+      if (currentId) {
+        await window.AppState.db.collection("notes").doc(currentId).update(payload);
+      } else {
+        payload.completed = false;
+        payload.inTrash = false;
+        payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        const docRef = await window.AppState.db.collection("notes").add(payload);
+        window.AppState.editingNoteId = docRef.id;
+        btnEditorTrash.classList.remove("hidden");
+      }
+      editorSyncStatus.textContent = "Сохранено в облако";
+    } catch (e) {
+      console.error("Ошибка сохранения:", e);
+      editorSyncStatus.textContent = "Ошибка сохранения";
+    }
   } else {
-    window.AppState.notes = window.AppState.notes.map((n) =>
-      n.id === noteId ? { ...n, attachment: null } : n
-    );
+    if (currentId) {
+      window.AppState.notes = window.AppState.notes.map((n) =>
+        n.id === currentId ? { ...n, ...payload } : n
+      );
+    } else {
+      payload.id = "local-" + Date.now();
+      payload.completed = false;
+      payload.inTrash = false;
+      payload.createdAt = Date.now();
+      window.AppState.notes.unshift(payload);
+      window.AppState.editingNoteId = payload.id;
+      btnEditorTrash.classList.remove("hidden");
+    }
     localStorage.setItem("keep_notes_local", JSON.stringify(window.AppState.notes));
-    window.renderFeed?.();
+    editorSyncStatus.textContent = "Сохранено локально";
   }
-  editorAttachmentBox.innerHTML = "";
-  editorAttachmentBox.classList.add("hidden");
 }
 
-// Отправка в корзину / восстановление
-async function handleTrashAction() {
+// Удаление заметки из редактора
+async function handleDeleteFromEditor() {
   const noteId = window.AppState.editingNoteId;
-  if (!noteId) return;
+  if (!noteId) {
+    window.AppRouter.goToList(true);
+    return;
+  }
 
   const note = window.AppState.notes.find((n) => n.id === noteId);
   if (!note) return;
 
   if (note.inTrash) {
-    // Восстановление
+    if (!confirm("Удалить заметку навсегда?")) return;
     if (window.AppState.isFirebaseMode) {
-      await window.AppState.db.collection("notes").doc(noteId).update({ inTrash: false });
+      await window.AppState.db.collection("notes").doc(noteId).delete();
     } else {
-      window.AppState.notes = window.AppState.notes.map((n) =>
-        n.id === noteId ? { ...n, inTrash: false } : n
-      );
+      window.AppState.notes = window.AppState.notes.filter((n) => n.id !== noteId);
       localStorage.setItem("keep_notes_local", JSON.stringify(window.AppState.notes));
-      window.renderFeed?.();
     }
   } else {
-    // В корзину
     if (window.AppState.isFirebaseMode) {
       await window.AppState.db.collection("notes").doc(noteId).update({ inTrash: true });
     } else {
@@ -215,73 +247,57 @@ async function handleTrashAction() {
         n.id === noteId ? { ...n, inTrash: true } : n
       );
       localStorage.setItem("keep_notes_local", JSON.stringify(window.AppState.notes));
-      window.renderFeed?.();
     }
   }
-  closeEditModal();
+
+  window.AppRouter.goToList(true);
 }
 
-// =============================================================================
-// ПРОСМОТР И СКАЧИВАНИЕ КАРТИНКИ (LIGHTBOX)
-// =============================================================================
-function openLightbox(url, filename = "image.jpg") {
-  currentLightboxUrl = url;
-  currentLightboxName = filename || "image.jpg";
-  lightboxImage.src = url;
-  lightboxModal.classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
+// Вставка чекбокса [ ]
+function insertCheckbox() {
+  const area = editorTextInput;
+  const start = area.selectionStart;
+  const end = area.selectionEnd;
+  const val = area.value;
 
-function closeLightbox() {
-  lightboxModal.classList.add("hidden");
-  if (!window.AppState.editingNoteId) {
-    document.body.style.overflow = "";
-  }
-  lightboxImage.src = "";
-}
-
-// Скачивание картинки
-function downloadCurrentImage() {
-  if (!currentLightboxUrl) return;
-  const a = document.createElement("a");
-  a.href = currentLightboxUrl;
-  a.download = currentLightboxName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  const prefix = (start > 0 && val[start - 1] !== "\n") ? "\n☐ " : "☐ ";
+  area.value = val.substring(0, start) + prefix + val.substring(end);
+  area.selectionStart = area.selectionEnd = start + prefix.length;
+  area.focus();
+  onEditorInput();
 }
 
 function setupEditorEvents() {
-  btnCloseEditor?.addEventListener("click", closeEditModal);
-  btnEditorTrash?.addEventListener("click", handleTrashAction);
+  btnEditorBack?.addEventListener("click", () => window.AppRouter.goToList());
+  btnEditorTrash?.addEventListener("click", handleDeleteFromEditor);
 
-  editorTitle?.addEventListener("input", triggerAutoSave);
-  editorText?.addEventListener("input", () => {
-    editorText.style.height = "auto";
-    editorText.style.height = editorText.scrollHeight + "px";
-    triggerAutoSave();
-  });
-  editorFolderSelect?.addEventListener("change", triggerAutoSave);
+  editorTitleInput?.addEventListener("input", onEditorInput);
+  editorTextInput?.addEventListener("input", onEditorInput);
+  editorFolderSelect?.addEventListener("change", onEditorInput);
 
-  // Клик вне карточки модалки закрывает её
-  editModal?.addEventListener("click", (e) => {
-    if (e.target === editModal) closeEditModal();
-  });
+  inputEditorPhoto?.addEventListener("change", (e) => handleAttachFile(e.target.files[0], "image"));
+  inputEditorAudio?.addEventListener("change", (e) => handleAttachFile(e.target.files[0], "audio"));
+  inputEditorFile?.addEventListener("change", (e) => handleAttachFile(e.target.files[0], "file"));
 
-  // Лайтбокс
-  btnCloseLightbox?.addEventListener("click", closeLightbox);
-  btnDownloadImage?.addEventListener("click", downloadCurrentImage);
-  lightboxModal?.addEventListener("click", (e) => {
-    if (e.target === lightboxModal) closeLightbox();
-  });
+  btnInsertCheckbox?.addEventListener("click", insertCheckbox);
+  btnEditorUndo?.addEventListener("click", () => document.execCommand("undo"));
+  btnEditorRedo?.addEventListener("click", () => document.execCommand("redo"));
 
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      if (!lightboxModal.classList.contains("hidden")) {
-        closeLightbox();
-      } else if (!editModal.classList.contains("hidden")) {
-        closeEditModal();
+  // Вставка картинок по Ctrl + V
+  window.addEventListener("paste", (e) => {
+    if (window.AppRouter.currentScreen !== "editor") return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let item of items) {
+      if (item.type.indexOf("image") !== -1) {
+        const file = item.getAsFile();
+        handleAttachFile(file, "image");
+        break;
       }
     }
   });
 }
+
+// Экспорт
+window.loadNoteIntoEditor = loadNoteIntoEditor;
+window.saveEditorNow = saveEditorNow;
