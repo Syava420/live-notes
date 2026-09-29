@@ -2,11 +2,12 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#202124">
-  <title>Заметки — Google Keep Style</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#18191c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Заметки</title>
   
-  <!-- Шрифт Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -19,247 +20,229 @@
 </head>
 <body>
 
-  <!-- Верхняя панель (Header) -->
-  <header class="app-header">
-    <div class="header-left">
-      <!-- Кнопка Гамбургер меню (Папки) -->
-      <button type="button" id="btn-toggle-sidebar" class="btn-icon header-btn" title="Главное меню / Папки" aria-label="Меню">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="3" y1="12" x2="21" y2="12"></line>
-          <line x1="3" y1="6" x2="21" y2="6"></line>
-          <line x1="3" y1="18" x2="21" y2="18"></line>
-        </svg>
-      </button>
-
-      <div class="brand-logo" aria-hidden="true">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/>
-        </svg>
-      </div>
-      <h1 class="brand-name">Заметки</h1>
-    </div>
-
-    <!-- Поисковая строка -->
-    <div class="search-bar">
-      <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"></circle>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-      </svg>
-      <input type="text" id="search-input" placeholder="Поиск в заметках и файлах..." autocomplete="off">
-    </div>
-
-    <div class="header-right">
-      <div id="status-pill" class="status-pill status-connecting" title="Статус синхронизации">
-        <span class="status-dot"></span>
-        <span id="status-text">В сети</span>
-      </div>
-    </div>
-  </header>
-
-  <!-- Затемнение для мобильного меню -->
-  <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
-
-  <!-- Главный макет: Сайдбар слева + Контент справа -->
-  <div class="app-layout">
+  <!-- =========================================================================
+       ЭКРАН 1: СПИСОК ЗАМЕТОК (ГЛАВНЫЙ)
+       ========================================================================= -->
+  <div id="screen-list" class="app-screen screen-active">
     
-    <!-- Боковая панель: Папки и категории -->
-    <aside id="app-sidebar" class="app-sidebar">
-      <div class="sidebar-content">
-        
-        <!-- Заголовок раздела папок -->
-        <div class="sidebar-section-header">
-          <span class="sidebar-section-title">ПАПКИ</span>
-          <button type="button" id="btn-new-folder" class="btn-add-folder" title="Создать новую папку">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-          </button>
-        </div>
+    <!-- Шапка списка -->
+    <header class="screen-header">
+      <div class="header-top-row">
+        <button type="button" id="btn-open-sidebar" class="header-icon-btn" aria-label="Меню папок">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
 
-        <!-- Поле ввода имени новой папки (скрыто по умолчанию) -->
-        <div id="new-folder-input-wrap" class="new-folder-input-wrap hidden">
-          <input type="text" id="input-folder-name" placeholder="Название папки..." maxlength="30">
-          <div class="new-folder-actions">
-            <button type="button" id="btn-save-new-folder" class="btn-folder-action save">✓</button>
-            <button type="button" id="btn-cancel-new-folder" class="btn-folder-action cancel">✕</button>
-          </div>
-        </div>
+        <h1 class="header-title">Заметки</h1>
 
-        <!-- Список папок -->
-        <ul id="folders-list" class="folders-list"></ul>
-
-      </div>
-    </aside>
-
-    <!-- Основная рабочая область -->
-    <main class="main-content">
-      
-      <!-- Поле ввода заметки (Google Keep Style) -->
-      <div class="note-creator-wrapper">
-        <form id="note-creator" class="note-creator" autocomplete="off">
-          
-          <!-- Выбор папки для новой заметки -->
-          <div class="creator-top-row">
-            <input 
-              type="text" 
-              id="creator-title" 
-              class="creator-title hidden" 
-              placeholder="Заголовок" 
-              maxlength="120"
-            >
-            <select id="creator-folder-select" class="folder-select-pill hidden" title="Выбрать папку">
-              <option value="">📁 Без папки</option>
-            </select>
-          </div>
-
-          <!-- Текст заметки -->
-          <textarea 
-            id="creator-text" 
-            class="creator-text" 
-            placeholder="Заметка..." 
-            rows="1"
-          ></textarea>
-
-          <!-- Предпросмотр вложения перед отправкой -->
-          <div id="attachment-preview-box" class="attachment-preview-box hidden">
-            <!-- Картинка -->
-            <div id="preview-image-wrap" class="preview-item hidden">
-              <img id="preview-image" alt="Предпросмотр">
-              <button type="button" class="btn-remove-attachment" id="btn-remove-attachment">&times;</button>
-            </div>
-            <!-- Аудио -->
-            <div id="preview-audio-wrap" class="preview-item hidden">
-              <audio id="preview-audio" controls></audio>
-              <button type="button" class="btn-remove-attachment" id="btn-remove-audio">&times;</button>
-            </div>
-            <!-- Документ / Архив -->
-            <div id="preview-file-wrap" class="preview-item preview-file-chip hidden">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-              </svg>
-              <div class="file-desc">
-                <span id="preview-file-name" class="name">archive.zip</span>
-                <span id="preview-file-size" class="size">0 MB</span>
-              </div>
-              <button type="button" class="btn-remove-attachment" id="btn-remove-file">&times;</button>
-            </div>
-          </div>
-
-          <!-- Нижняя панель действий создания заметки -->
-          <div id="creator-actions" class="creator-actions hidden">
-            <div class="action-tools">
-              <!-- Картинка -->
-              <label class="tool-btn" title="Прикрепить изображение">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
-                <input type="file" id="input-image" accept="image/*" class="file-input-hidden">
-              </label>
-
-              <!-- Аудио -->
-              <label class="tool-btn" title="Прикрепить аудио">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18V5l12-2v13"></path>
-                  <circle cx="6" cy="18" r="3"></circle>
-                  <circle cx="18" cy="16" r="3"></circle>
-                </svg>
-                <input type="file" id="input-audio" accept="audio/*" class="file-input-hidden">
-              </label>
-
-              <!-- Файл / Архив -->
-              <label class="tool-btn" title="Прикрепить архив или документ">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
-                </svg>
-                <input type="file" id="input-file" class="file-input-hidden">
-              </label>
-            </div>
-
-            <div class="action-buttons">
-              <button type="submit" id="btn-save-note" class="btn-primary">Сохранить</button>
-              <button type="button" id="btn-close-creator" class="btn-text">Закрыть</button>
-            </div>
-          </div>
-
-        </form>
-      </div>
-
-      <!-- Фильтры и статистика ленты -->
-      <div class="feed-header">
-        <span id="counter-summary" class="counter-summary">Загрузка...</span>
-        <div class="filter-chips">
-          <button type="button" class="filter-chip active" data-filter="all">Все</button>
-          <button type="button" class="filter-chip" data-filter="active">В процессе</button>
-          <button type="button" class="filter-chip" data-filter="media">С файлами</button>
+        <div id="status-pill" class="status-indicator" title="Статус синхронизации">
+          <span class="status-dot"></span>
         </div>
       </div>
 
-      <!-- Сетка заметок (Keep Masonry Grid) -->
-      <div id="notes-grid" class="notes-grid"></div>
-
-      <!-- Пустое состояние -->
-      <div id="empty-state" class="empty-state hidden">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="12" y1="18" x2="12" y2="12"></line>
-          <line x1="9" y1="15" x2="15" y2="15"></line>
+      <!-- Поисковая строка -->
+      <div class="search-container">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <p class="empty-title">Заметок пока нет</p>
-        <p class="empty-subtitle">Нажмите выше, чтобы создать первую заметку, прикрепить фото или аудио</p>
+        <input type="text" id="search-input" placeholder="Поиск в заметках..." autocomplete="off">
+        <button type="button" id="btn-clear-search" class="btn-clear-search hidden">&times;</button>
       </div>
 
+      <!-- Горизонтальная лента папок (iOS/Android Chips) -->
+      <div class="folders-chip-track">
+        <div id="folders-chip-list" class="folders-chip-list"></div>
+      </div>
+    </header>
+
+    <!-- Основной скролл со списком карточек -->
+    <main class="list-body">
+      <div id="notes-container" class="notes-container"></div>
+
+      <!-- Состояние когда заметок нет -->
+      <div id="empty-state" class="empty-state hidden">
+        <div class="empty-icon-box">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <line x1="9" y1="15" x2="15" y2="15"></line>
+          </svg>
+        </div>
+        <p class="empty-title">Заметок пока нет</p>
+        <p class="empty-desc">Нажмите на желтый плюс внизу, чтобы создать первую запись</p>
+      </div>
     </main>
+
+    <!-- Плавающая кнопка создания новой заметки под большой палец (FAB) -->
+    <button type="button" id="btn-fab-new" class="fab-new-btn" aria-label="Создать новую заметку">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+
   </div>
 
-  <!-- Мобильная плавающая кнопка создания (+) -->
-  <button type="button" id="mobile-fab" class="mobile-fab" title="Новая заметка" aria-label="Создать заметку">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-      <line x1="12" y1="5" x2="12" y2="19"></line>
-      <line x1="5" y1="12" x2="19" y2="12"></line>
-    </svg>
-  </button>
+  <!-- =========================================================================
+       ЭКРАН 2: РЕДАКТОР ЗАМЕТКИ (ПОЛНОЭКРАННЫЙ РАБОЧИЙ ЛИСТ)
+       ========================================================================= -->
+  <div id="screen-editor" class="app-screen">
+    
+    <!-- Шапка редактора -->
+    <header class="editor-header">
+      <button type="button" id="btn-editor-back" class="editor-back-btn" aria-label="Назад к списку">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        <span>Заметки</span>
+      </button>
 
-  <!-- МОДАЛЬНОЕ ОКНО: РЕДАКТИРОВАНИЕ ЗАМЕТКИ (Google Keep Style) -->
-  <div id="edit-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
-    <div class="edit-modal-card">
-      
-      <div class="edit-modal-header">
-        <select id="editor-folder-select" class="folder-select-pill" title="Папка заметки">
-          <option value="">📁 Без папки</option>
-        </select>
-        <span id="editor-save-status" class="editor-save-status">Сохранено</span>
-      </div>
+      <span id="editor-sync-status" class="editor-sync-status">Сохранено</span>
 
-      <div class="edit-modal-body">
-        <input type="text" id="editor-title" class="editor-title-input" placeholder="Заголовок" maxlength="120">
-        <textarea id="editor-text" class="editor-text-input" placeholder="Текст заметки..."></textarea>
-        
-        <!-- Вложения в редактируемой заметке -->
-        <div id="editor-attachment-box" class="editor-attachment-box hidden"></div>
-      </div>
-
-      <div class="edit-modal-footer">
-        <button type="button" id="btn-editor-trash" class="btn-icon" title="В корзину">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <div class="editor-header-actions">
+        <button type="button" id="btn-editor-trash" class="header-icon-btn" title="Удалить заметку" aria-label="Удалить">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           </svg>
         </button>
-        <button type="button" id="btn-close-editor" class="btn-primary">Готово</button>
+      </div>
+    </header>
+
+    <!-- Полотно заметки -->
+    <div class="editor-canvas">
+      
+      <!-- Селектор папки -->
+      <div class="editor-meta-bar">
+        <span class="meta-label">Папка:</span>
+        <select id="editor-folder-select" class="folder-dropdown" aria-label="Выберите папку">
+          <option value="">📁 Без папки</option>
+        </select>
       </div>
 
+      <!-- Поле заголовка -->
+      <input 
+        type="text" 
+        id="editor-title-input" 
+        class="editor-title-input" 
+        placeholder="Заголовок" 
+        maxlength="150"
+      >
+
+      <!-- Поле текста заметки -->
+      <textarea 
+        id="editor-text-input" 
+        class="editor-text-input" 
+        placeholder="Начните писать..."
+      ></textarea>
+
+      <!-- Контейнер прикреплённого вложения (фото / аудио / файл) -->
+      <div id="editor-media-preview" class="editor-media-preview hidden"></div>
+
     </div>
+
+    <!-- Нижний тулбар инструментов редактора (всегда закреплен над клавиатурой) -->
+    <footer class="editor-bottom-bar">
+      
+      <!-- Фото -->
+      <label class="editor-tool-btn" title="Прикрепить изображение">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+        <input type="file" id="input-editor-photo" accept="image/*" hidden>
+      </label>
+
+      <!-- Аудио -->
+      <label class="editor-tool-btn" title="Прикрепить аудиофайл">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+        <input type="file" id="input-editor-audio" accept="audio/*" hidden>
+      </label>
+
+      <!-- Архив / Документ -->
+      <label class="editor-tool-btn" title="Прикрепить архив или файл">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+        </svg>
+        <input type="file" id="input-editor-file" hidden>
+      </label>
+
+      <!-- Быстрый чекбокс To-Do -->
+      <button type="button" id="btn-insert-checkbox" class="editor-tool-btn" title="Вставить чекбокс списка">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+          <path d="m9 12 2 2 4-4"></path>
+        </svg>
+      </button>
+
+      <!-- Отмена / Повтор (Undo / Redo) -->
+      <div class="editor-undo-group">
+        <button type="button" id="btn-editor-undo" class="editor-tool-btn" title="Отменить">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 7v6h6"></path>
+            <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+          </svg>
+        </button>
+        <button type="button" id="btn-editor-redo" class="editor-tool-btn" title="Повторить">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 7v6h-6"></path>
+            <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path>
+          </svg>
+        </button>
+      </div>
+
+    </footer>
+
   </div>
 
-  <!-- МОДАЛЬНОЕ ОКНО: ПРОСМОТР КАРТИНКИ И СКАЧИВАНИЕ (LIGHTBOX) -->
-  <div id="lightbox-modal" class="lightbox-backdrop hidden" role="dialog" aria-modal="true">
-    <div class="lightbox-toolbar">
-      <button type="button" id="btn-download-image" class="lightbox-btn" title="Скачать картинку на устройство">
+  <!-- =========================================================================
+       БОКОВОЕ МЕНЮ ПАПОК (ВЫЕЗЖАЕТ СЛЕВА)
+       ========================================================================= -->
+  <div id="drawer-overlay" class="drawer-overlay" aria-hidden="true"></div>
+  
+  <aside id="app-drawer" class="app-drawer">
+    <div class="drawer-header">
+      <h2 class="drawer-title">Папки</h2>
+      <button type="button" id="btn-drawer-add-folder" class="btn-create-folder" title="Создать папку">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Новая папка</span>
+      </button>
+    </div>
+
+    <!-- Инлайн ввод названия новой папки -->
+    <div id="drawer-new-folder-wrap" class="drawer-new-folder-wrap hidden">
+      <input type="text" id="input-new-folder-name" placeholder="Имя папки..." maxlength="25">
+      <div class="drawer-folder-btns">
+        <button type="button" id="btn-save-folder-name" class="btn-sm save">✓</button>
+        <button type="button" id="btn-cancel-folder-name" class="btn-sm cancel">✕</button>
+      </div>
+    </div>
+
+    <!-- Список папок -->
+    <ul id="drawer-folders-list" class="drawer-folders-list"></ul>
+  </aside>
+
+  <!-- =========================================================================
+       МОДАЛЬНОЕ ОКНО LIGHTBOX (ПРОСМОТР ФОТО И СКАЧИВАНИЕ)
+       ========================================================================= -->
+  <div id="lightbox-modal" class="lightbox-modal hidden" role="dialog" aria-modal="true">
+    <div class="lightbox-top-bar">
+      <button type="button" id="btn-lightbox-download" class="lightbox-action-btn">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-4"></path>
           <polyline points="7 10 12 15 17 10"></polyline>
@@ -267,15 +250,16 @@
         </svg>
         <span>Скачать фото</span>
       </button>
-      <button type="button" id="btn-close-lightbox" class="lightbox-btn" title="Закрыть">&times;</button>
+      <button type="button" id="btn-lightbox-close" class="lightbox-close-btn" aria-label="Закрыть">&times;</button>
     </div>
-    <div class="lightbox-content">
-      <img id="lightbox-image" alt="Увеличенное изображение" />
+    <div class="lightbox-media-container">
+      <img id="lightbox-img" alt="Просмотр фотографии">
     </div>
   </div>
 
-  <!-- Скрипты модулей (без сборщиков, чистый JS) -->
+  <!-- Модули приложения -->
   <script src="js/config.js"></script>
+  <script src="js/router.js"></script>
   <script src="js/folders.js"></script>
   <script src="js/editor.js"></script>
   <script src="js/main.js"></script>
