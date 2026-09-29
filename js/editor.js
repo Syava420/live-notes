@@ -14,7 +14,6 @@ const editorMediaPreview = document.getElementById("editor-media-preview");
 const inputEditorPhoto = document.getElementById("input-editor-photo");
 const inputEditorAudio = document.getElementById("input-editor-audio");
 const inputEditorFile = document.getElementById("input-editor-file");
-const btnInsertCheckbox = document.getElementById("btn-insert-checkbox");
 const btnEditorUndo = document.getElementById("btn-editor-undo");
 const btnEditorRedo = document.getElementById("btn-editor-redo");
 
@@ -25,7 +24,7 @@ function initEditorModule() {
   setupEditorEvents();
 }
 
-// Загрузка заметки в редактор (или создание новой)
+// Загрузка заметки в редактор
 function loadNoteIntoEditor(noteId) {
   clearTimeout(autoSaveTimeout);
 
@@ -36,20 +35,20 @@ function loadNoteIntoEditor(noteId) {
     currentAttachment = null;
     editorSyncStatus.textContent = "Новая";
 
-    // Автовыбор текущей открытой папки
-    if (window.AppState.activeFolderId && window.AppState.activeFolderId !== "all" && window.AppState.activeFolderId !== "trash") {
+    if (window.AppState.activeFolderId && window.AppState.activeFolderId !== "all" && window.AppState.activeFolderId !== "trash" && window.AppState.activeFolderId !== "archive") {
       editorFolderSelect.value = window.AppState.activeFolderId;
     } else {
       editorFolderSelect.value = "";
     }
 
+    window.ChecklistManager?.clear();
     renderEditorAttachmentView(null);
     btnEditorTrash.classList.add("hidden");
-    setTimeout(() => editorTextInput.focus(), 150);
+    setTimeout(() => editorTextInput.focus(), 120);
     return;
   }
 
-  // Редактирование существующей
+  // Редактирование
   btnEditorTrash.classList.remove("hidden");
   const note = window.AppState.notes.find((n) => n.id === noteId);
   if (!note) return;
@@ -60,10 +59,13 @@ function loadNoteIntoEditor(noteId) {
   currentAttachment = note.attachment || null;
   editorSyncStatus.textContent = "Сохранено";
 
+  // Загрузка интерактивного чек-листа
+  window.ChecklistManager?.load(note.checklist || []);
+
   renderEditorAttachmentView(currentAttachment);
 }
 
-// Отрисовка превью медиафайла внутри редактора
+// Отрисовка превью медиа
 function renderEditorAttachmentView(att) {
   editorMediaPreview.innerHTML = "";
   if (!att || !att.url) {
@@ -133,10 +135,10 @@ function renderEditorAttachmentView(att) {
   }
 }
 
-// Прикрепление файла в редакторе
+// Прикрепление файла
 async function handleAttachFile(file, type) {
   if (!file) return;
-  editorSyncStatus.textContent = "Обработка файла...";
+  editorSyncStatus.textContent = "Обработка...";
 
   try {
     const dataUrl = await fileToDataUrl(file);
@@ -168,9 +170,10 @@ async function saveEditorNow() {
   const title = editorTitleInput.value.trim();
   const text = editorTextInput.value.trim();
   const folderId = editorFolderSelect.value || "";
+  const checklistData = window.ChecklistManager?.getData() || [];
 
   // Если всё пусто — ничего не сохраняем
-  if (!title && !text && !currentAttachment) {
+  if (!title && !text && !currentAttachment && checklistData.length === 0) {
     return;
   }
 
@@ -178,6 +181,7 @@ async function saveEditorNow() {
     title: title,
     text: text,
     folderId: folderId,
+    checklist: checklistData,
     attachment: currentAttachment,
     updatedAt: window.AppState.isFirebaseMode ? firebase.firestore.FieldValue.serverTimestamp() : Date.now()
   };
@@ -191,15 +195,16 @@ async function saveEditorNow() {
       } else {
         payload.completed = false;
         payload.inTrash = false;
+        payload.isArchived = false;
         payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
         const docRef = await window.AppState.db.collection("notes").add(payload);
         window.AppState.editingNoteId = docRef.id;
         btnEditorTrash.classList.remove("hidden");
       }
-      editorSyncStatus.textContent = "Сохранено в облако";
+      editorSyncStatus.textContent = "Сохранено";
     } catch (e) {
       console.error("Ошибка сохранения:", e);
-      editorSyncStatus.textContent = "Ошибка сохранения";
+      editorSyncStatus.textContent = "Ошибка";
     }
   } else {
     if (currentId) {
@@ -210,17 +215,18 @@ async function saveEditorNow() {
       payload.id = "local-" + Date.now();
       payload.completed = false;
       payload.inTrash = false;
+      payload.isArchived = false;
       payload.createdAt = Date.now();
       window.AppState.notes.unshift(payload);
       window.AppState.editingNoteId = payload.id;
       btnEditorTrash.classList.remove("hidden");
     }
     localStorage.setItem("keep_notes_local", JSON.stringify(window.AppState.notes));
-    editorSyncStatus.textContent = "Сохранено локально";
+    editorSyncStatus.textContent = "Сохранено";
   }
 }
 
-// Удаление заметки из редактора
+// Удаление заметки
 async function handleDeleteFromEditor() {
   const noteId = window.AppState.editingNoteId;
   if (!noteId) {
@@ -253,20 +259,6 @@ async function handleDeleteFromEditor() {
   window.AppRouter.goToList(true);
 }
 
-// Вставка чекбокса [ ]
-function insertCheckbox() {
-  const area = editorTextInput;
-  const start = area.selectionStart;
-  const end = area.selectionEnd;
-  const val = area.value;
-
-  const prefix = (start > 0 && val[start - 1] !== "\n") ? "\n☐ " : "☐ ";
-  area.value = val.substring(0, start) + prefix + val.substring(end);
-  area.selectionStart = area.selectionEnd = start + prefix.length;
-  area.focus();
-  onEditorInput();
-}
-
 function setupEditorEvents() {
   btnEditorBack?.addEventListener("click", () => window.AppRouter.goToList());
   btnEditorTrash?.addEventListener("click", handleDeleteFromEditor);
@@ -279,11 +271,9 @@ function setupEditorEvents() {
   inputEditorAudio?.addEventListener("change", (e) => handleAttachFile(e.target.files[0], "audio"));
   inputEditorFile?.addEventListener("change", (e) => handleAttachFile(e.target.files[0], "file"));
 
-  btnInsertCheckbox?.addEventListener("click", insertCheckbox);
   btnEditorUndo?.addEventListener("click", () => document.execCommand("undo"));
   btnEditorRedo?.addEventListener("click", () => document.execCommand("redo"));
 
-  // Вставка картинок по Ctrl + V
   window.addEventListener("paste", (e) => {
     if (window.AppRouter.currentScreen !== "editor") return;
     const items = e.clipboardData?.items;
@@ -298,6 +288,5 @@ function setupEditorEvents() {
   });
 }
 
-// Экспорт
 window.loadNoteIntoEditor = loadNoteIntoEditor;
 window.saveEditorNow = saveEditorNow;
