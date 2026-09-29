@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0d0f14">
+  <title>Живой Блокнот — Real-time Notepad</title>
+  
+  <!-- Шрифт Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Firebase SDK (Compat версия через официальный Google CDN) -->
+  <!-- Работает сразу из коробки: и локально при клике на файл, и на GitHub Pages / Vercel -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <!-- Фоновое неоновое свечение -->
+  <div class="ambient-glow" aria-hidden="true"></div>
+
+  <main class="app-container">
+    
+    <!-- Шапка приложения -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+        </div>
+        <div>
+          <h1 class="app-title">Живой Блокнот</h1>
+          <p class="app-subtitle">Мгновенная синхронизация заметок</p>
+        </div>
+      </div>
+
+      <!-- Индикатор статуса соединения -->
+      <div id="status-pill" class="status-pill status-connecting" title="Статус синхронизации">
+        <span class="status-dot"></span>
+        <span id="status-text" class="status-text">Подключение...</span>
+      </div>
+    </header>
+
+    <!-- Предупреждение / баннер (если ключи Firebase еще не вставлены) -->
+    <div id="banner-notice" class="banner-notice hidden">
+      <div class="banner-content">
+        <span class="banner-icon">⚡</span>
+        <div class="banner-text">
+          <strong>Включён демо-режим.</strong> Заметки сохраняются в браузере. Для синхронизации между ПК и телефоном подключите Firebase по инструкции.
+        </div>
+      </div>
+      <button id="btn-open-guide" class="banner-btn" type="button">Инструкция</button>
+    </div>
+
+    <!-- Панель счетчика и фильтрации -->
+    <section class="stats-card">
+      <div class="counter-item">
+        <span class="counter-label">Осталось сделать:</span>
+        <span id="remaining-count" class="counter-value">0</span>
+      </div>
+      <div class="counter-item">
+        <span class="counter-label">Всего заметок:</span>
+        <span id="total-count" class="counter-value-muted">0</span>
+      </div>
+    </section>
+
+    <!-- Форма ввода новой заметки -->
+    <form id="note-form" class="note-form" autocomplete="off">
+      <div class="input-wrapper">
+        <input 
+          type="text" 
+          id="note-input" 
+          class="note-input" 
+          placeholder="Что нужно сделать или записать?.." 
+          maxlength="200"
+          required
+        >
+      </div>
+      <button type="submit" id="add-btn" class="btn-submit">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Добавить</span>
+      </button>
+    </form>
+
+    <!-- Список заметок -->
+    <section class="list-section">
+      <ul id="notes-list" class="notes-list" aria-live="polite"></ul>
+
+      <!-- Состояние пустого списка -->
+      <div id="empty-state" class="empty-state">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="m9 12 2 2 4-4"></path>
+          </svg>
+        </div>
+        <p class="empty-title">Заметок пока нет</p>
+        <p class="empty-desc">Напишите что-нибудь выше и нажмите Enter — заметка сразу появится тут и на всех ваших устройствах!</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Всплывающее модальное окно с инструкцией (для удобства прямо в интерфейсе) -->
+  <div id="guide-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">Как подключить Firebase за 1 минуту</h2>
+        <button id="btn-close-modal" class="btn-close" type="button" aria-label="Закрыть">&times;</button>
+      </div>
+      <div class="modal-body">
+        <ol class="guide-steps">
+          <li>
+            <strong>Создайте проект:</strong> Зайдите на <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a>, нажмите <em>«Добавить проект»</em>, введите любое имя (например, <code>my-notes</code>) и нажмите «Продолжить».
+          </li>
+          <li>
+            <strong>Включите базу Firestore:</strong> В левом меню нажмите <em>«Сборка» &rarr; «База данных Firestore»</em> &rarr; <em>«Создать базу данных»</em>. Выберите <em>«Тестовый режим»</em> (Test Mode), чтобы база разрешала чтение и запись.
+          </li>
+          <li>
+            <strong>Получите ключи:</strong> На главной странице проекта нажмите иконку веб-приложения <code>&lt;/&gt;</code> (Веб), зарегистрируйте приложение. Внизу появится объект <code>firebaseConfig</code>.
+          </li>
+          <li>
+            <strong>Вставьте в код:</strong> Откройте файл <code>app.js</code> и замените шаблонные строчки в объекте <code>firebaseConfig</code> на ваши ключи. Готово!
+          </li>
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-modal-ok" class="banner-btn" type="button">Понятно, спасибо!</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
