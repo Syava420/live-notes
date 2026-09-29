@@ -1,35 +1,34 @@
 // =============================================================================
-// МОДУЛЬ ПАПОК И БОКОВОЙ ПАНЕЛИ (js/folders.js)
+// МОДУЛЬ ПАПОК И ВЫДВИЖНОЙ ШТОРКИ (js/folders.js)
 // =============================================================================
 
-const sidebar = document.getElementById("app-sidebar");
-const sidebarOverlay = document.getElementById("sidebar-overlay");
-const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
-const foldersListEl = document.getElementById("folders-list");
-const btnNewFolder = document.getElementById("btn-new-folder");
-const newFolderInputWrap = document.getElementById("new-folder-input-wrap");
-const inputFolderName = document.getElementById("input-folder-name");
-const btnSaveNewFolder = document.getElementById("btn-save-new-folder");
-const btnCancelNewFolder = document.getElementById("btn-cancel-new-folder");
+const appDrawer = document.getElementById("app-drawer");
+const drawerOverlay = document.getElementById("drawer-overlay");
+const btnOpenSidebar = document.getElementById("btn-open-sidebar");
+const drawerFoldersList = document.getElementById("drawer-folders-list");
+const btnDrawerAddFolder = document.getElementById("btn-drawer-add-folder");
+const drawerNewFolderWrap = document.getElementById("drawer-new-folder-wrap");
+const inputNewFolderName = document.getElementById("input-new-folder-name");
+const btnSaveFolderName = document.getElementById("btn-save-folder-name");
+const btnCancelFolderName = document.getElementById("btn-cancel-folder-name");
+const foldersChipList = document.getElementById("folders-chip-list");
 
-// Инициализация модуля папок
 function initFoldersModule() {
   setupFolderEvents();
 
   if (window.AppState.isFirebaseMode) {
     listenToFolders();
   } else {
-    const saved = localStorage.getItem("keep_folders_local");
+    const saved = localStorage.getItem("app_folders_v2");
     window.AppState.folders = saved ? JSON.parse(saved) : [
-      { id: "default-work", name: "Работа" },
-      { id: "default-ideas", name: "Идеи" }
+      { id: "work", name: "Работа" },
+      { id: "personal", name: "Личное" }
     ];
-    renderFoldersSidebar();
-    updateFolderSelectOptions();
+    renderAllFolderViews();
   }
 }
 
-// Подписка на коллекцию folders в Firestore
+// Слушатель Firestore
 function listenToFolders() {
   window.AppState.db.collection("folders").orderBy("createdAt", "asc").onSnapshot(
     (snapshot) => {
@@ -38,37 +37,30 @@ function listenToFolders() {
         list.push({ id: doc.id, ...doc.data() });
       });
       window.AppState.folders = list;
-      renderFoldersSidebar();
-      updateFolderSelectOptions();
+      renderAllFolderViews();
     },
-    (err) => {
-      console.warn("Ошибка загрузки папок:", err);
-    }
+    (err) => console.warn("Ошибка загрузки папок:", err)
   );
 }
 
-// Создание новой папки
+// Создание папки
 async function createFolder(name) {
-  const cleanName = name.trim();
-  if (!cleanName) return;
+  const clean = name.trim();
+  if (!clean) return;
 
   if (window.AppState.isFirebaseMode) {
     try {
       await window.AppState.db.collection("folders").add({
-        name: cleanName,
+        name: clean,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     } catch (e) {
-      alert("Ошибка создания папки: " + e.message);
+      alert("Не удалось создать папку: " + e.message);
     }
   } else {
-    window.AppState.folders.push({
-      id: "folder-" + Date.now(),
-      name: cleanName
-    });
-    localStorage.setItem("keep_folders_local", JSON.stringify(window.AppState.folders));
-    renderFoldersSidebar();
-    updateFolderSelectOptions();
+    window.AppState.folders.push({ id: "folder-" + Date.now(), name: clean });
+    localStorage.setItem("app_folders_v2", JSON.stringify(window.AppState.folders));
+    renderAllFolderViews();
   }
 }
 
@@ -77,16 +69,11 @@ async function deleteFolder(folderId) {
   if (!confirm("Удалить эту папку? Заметки останутся в общем списке.")) return;
 
   if (window.AppState.isFirebaseMode) {
-    try {
-      await window.AppState.db.collection("folders").doc(folderId).delete();
-    } catch (e) {
-      alert("Не удалось удалить папку: " + e.message);
-    }
+    await window.AppState.db.collection("folders").doc(folderId).delete();
   } else {
     window.AppState.folders = window.AppState.folders.filter((f) => f.id !== folderId);
-    localStorage.setItem("keep_folders_local", JSON.stringify(window.AppState.folders));
-    renderFoldersSidebar();
-    updateFolderSelectOptions();
+    localStorage.setItem("app_folders_v2", JSON.stringify(window.AppState.folders));
+    renderAllFolderViews();
   }
 
   if (window.AppState.activeFolderId === folderId) {
@@ -94,77 +81,55 @@ async function deleteFolder(folderId) {
   }
 }
 
-// Переключение активной папки
 function setActiveFolder(folderId) {
   window.AppState.activeFolderId = folderId;
-  renderFoldersSidebar();
+  renderAllFolderViews();
   window.renderFeed?.();
-
-  // На мобильных устройствах закрываем шторку
-  if (window.innerWidth <= 768) {
-    closeSidebar();
-  }
+  closeDrawer();
 }
 
-// Отрисовка списка папок в сайдбаре
-function renderFoldersSidebar() {
-  if (!foldersListEl) return;
-  foldersListEl.innerHTML = "";
-
-  // 1. Все заметки
-  const allLi = createSidebarItem({
-    id: "all",
-    name: "Все заметки",
-    icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`,
-    isActive: window.AppState.activeFolderId === "all",
-    isPermanent: true
-  });
-  foldersListEl.appendChild(allLi);
-
-  // 2. Пользовательские папки
-  window.AppState.folders.forEach((folder) => {
-    const li = createSidebarItem({
-      id: folder.id,
-      name: folder.name,
-      icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>`,
-      isActive: window.AppState.activeFolderId === folder.id,
-      isPermanent: false
-    });
-    foldersListEl.appendChild(li);
-  });
-
-  // 3. Корзина
-  const trashLi = createSidebarItem({
-    id: "trash",
-    name: "Корзина",
-    icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
-    isActive: window.AppState.activeFolderId === "trash",
-    isPermanent: true
-  });
-  foldersListEl.appendChild(trashLi);
+// Отрисовка папок (и в выдвижной шторке, и в горизонтальных чипах над заметками)
+function renderAllFolderViews() {
+  renderDrawer();
+  renderHorizontalChips();
+  updateEditorFolderSelect();
 }
 
-function createSidebarItem({ id, name, icon, isActive, isPermanent }) {
+// 1. Выдвижная шторка
+function renderDrawer() {
+  if (!drawerFoldersList) return;
+  drawerFoldersList.innerHTML = "";
+
+  // Все заметки
+  const allItem = createDrawerItem("all", "Все заметки", "📝", true);
+  drawerFoldersList.appendChild(allItem);
+
+  // Пользовательские папки
+  window.AppState.folders.forEach((f) => {
+    const item = createDrawerItem(f.id, f.name, "📁", false);
+    drawerFoldersList.appendChild(item);
+  });
+
+  // Корзина
+  const trashItem = createDrawerItem("trash", "Корзина", "🗑️", true);
+  drawerFoldersList.appendChild(trashItem);
+}
+
+function createDrawerItem(id, name, emoji, isPermanent) {
   const li = document.createElement("li");
-  li.className = `sidebar-item ${isActive ? "active" : ""}`;
+  const isActive = window.AppState.activeFolderId === id;
+  li.className = `drawer-item ${isActive ? "active" : ""}`;
 
-  const button = document.createElement("button");
-  button.className = "sidebar-btn";
-  button.type = "button";
-  button.innerHTML = `
-    <span class="sidebar-icon">${icon}</span>
-    <span class="sidebar-label">${name}</span>
-  `;
-  button.onclick = () => setActiveFolder(id);
-  li.appendChild(button);
+  const titleDiv = document.createElement("div");
+  titleDiv.className = "drawer-item-title";
+  titleDiv.innerHTML = `<span>${emoji}</span> <span>${name}</span>`;
+  li.appendChild(titleDiv);
 
-  // Кнопка удаления для пользовательских папок
   if (!isPermanent) {
     const delBtn = document.createElement("button");
-    delBtn.className = "btn-delete-folder";
-    delBtn.type = "button";
-    delBtn.title = "Удалить папку";
+    delBtn.className = "btn-del-folder";
     delBtn.innerHTML = `&times;`;
+    delBtn.title = "Удалить папку";
     delBtn.onclick = (e) => {
       e.stopPropagation();
       deleteFolder(id);
@@ -172,76 +137,87 @@ function createSidebarItem({ id, name, icon, isActive, isPermanent }) {
     li.appendChild(delBtn);
   }
 
+  li.onclick = () => setActiveFolder(id);
   return li;
 }
 
-// Обновление опций <select> в формах создания и редактирования заметки
-function updateFolderSelectOptions() {
-  const selects = [
-    document.getElementById("creator-folder-select"),
-    document.getElementById("editor-folder-select")
-  ];
+// 2. Горизонтальные чипы над списком (для быстрого свайпа пальцем)
+function renderHorizontalChips() {
+  if (!foldersChipList) return;
+  foldersChipList.innerHTML = "";
 
-  selects.forEach((sel) => {
-    if (!sel) return;
-    const currentVal = sel.value;
-    sel.innerHTML = `<option value="">📁 Без папки</option>`;
-    window.AppState.folders.forEach((f) => {
-      const opt = document.createElement("option");
-      opt.value = f.id;
-      opt.textContent = `📁 ${f.name}`;
-      sel.appendChild(opt);
-    });
-    if (currentVal) sel.value = currentVal;
+  const allChip = createChip("all", "Все");
+  foldersChipList.appendChild(allChip);
+
+  window.AppState.folders.forEach((f) => {
+    const chip = createChip(f.id, f.name);
+    foldersChipList.appendChild(chip);
   });
+
+  const trashChip = createChip("trash", "Корзина");
+  foldersChipList.appendChild(trashChip);
 }
 
-// Управление шторкой боковой панели
-function toggleSidebar() {
-  if (window.innerWidth <= 768) {
-    sidebar.classList.toggle("open");
-    sidebarOverlay.classList.toggle("active");
-  } else {
-    sidebar.classList.toggle("collapsed");
-    document.body.classList.toggle("sidebar-collapsed");
-  }
+function createChip(id, name) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = `folder-chip ${window.AppState.activeFolderId === id ? "active" : ""}`;
+  btn.textContent = name;
+  btn.onclick = () => setActiveFolder(id);
+  return btn;
 }
 
-function closeSidebar() {
-  sidebar.classList.remove("open");
-  sidebarOverlay.classList.remove("active");
+// 3. Выпадающий список папок в Редакторе
+function updateEditorFolderSelect() {
+  const sel = document.getElementById("editor-folder-select");
+  if (!sel) return;
+  const currentVal = sel.value;
+  sel.innerHTML = `<option value="">📁 Без папки</option>`;
+  window.AppState.folders.forEach((f) => {
+    const opt = document.createElement("option");
+    opt.value = f.id;
+    opt.textContent = `📁 ${f.name}`;
+    sel.appendChild(opt);
+  });
+  if (currentVal) sel.value = currentVal;
+}
+
+// Шторка
+function openDrawer() {
+  appDrawer.classList.add("open");
+  drawerOverlay.classList.add("active");
+}
+
+function closeDrawer() {
+  appDrawer.classList.remove("open");
+  drawerOverlay.classList.remove("active");
 }
 
 function setupFolderEvents() {
-  btnToggleSidebar?.addEventListener("click", toggleSidebar);
-  sidebarOverlay?.addEventListener("click", closeSidebar);
+  btnOpenSidebar?.addEventListener("click", openDrawer);
+  drawerOverlay?.addEventListener("click", closeDrawer);
 
-  // Форма добавления папки
-  btnNewFolder?.addEventListener("click", () => {
-    newFolderInputWrap.classList.remove("hidden");
-    inputFolderName.focus();
+  btnDrawerAddFolder?.addEventListener("click", () => {
+    drawerNewFolderWrap.classList.remove("hidden");
+    inputNewFolderName.focus();
   });
 
-  btnCancelNewFolder?.addEventListener("click", () => {
-    newFolderInputWrap.classList.add("hidden");
-    inputFolderName.value = "";
+  btnCancelFolderName?.addEventListener("click", () => {
+    drawerNewFolderWrap.classList.add("hidden");
+    inputNewFolderName.value = "";
   });
 
-  btnSaveNewFolder?.addEventListener("click", async () => {
-    const val = inputFolderName.value;
+  btnSaveFolderName?.addEventListener("click", async () => {
+    const val = inputNewFolderName.value;
     if (val.trim()) {
       await createFolder(val);
-      inputFolderName.value = "";
-      newFolderInputWrap.classList.add("hidden");
+      inputNewFolderName.value = "";
+      drawerNewFolderWrap.classList.add("hidden");
     }
   });
 
-  inputFolderName?.addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      btnSaveNewFolder.click();
-    } else if (e.key === "Escape") {
-      btnCancelNewFolder.click();
-    }
+  inputNewFolderName?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") btnSaveFolderName.click();
+    if (e.key === "Escape") btnCancelFolderName.click();
   });
 }
