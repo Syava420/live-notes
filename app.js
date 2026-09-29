@@ -186,46 +186,55 @@ function formatBytes(bytes, decimals = 1) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 }
 
-// Загрузка файла в Firebase Storage
-async function uploadToStorage(file) {
-  uploadProgressBar.classList.remove("hidden");
-  uploadProgressFill.style.width = "0%";
-
-  try {
-    const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const storageRef = storage.ref(`attachments/${Date.now()}_${cleanName}`);
-    const uploadTask = storageRef.put(file);
-
-    return new Promise((resolve, reject) => {
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          uploadProgressFill.style.width = `${progress}%`;
-        },
-        (error) => {
-          console.error("Storage upload error:", error);
-          uploadProgressBar.classList.add("hidden");
-          // Если в Firebase не включили Cloud Storage
-          if (error.code === "storage/unauthorized" || error.code === "storage/bucket-not-found") {
-            alert(
-              "⚠️ Внимание: Для загрузки файлов в облако включите Cloud Storage в консоли Firebase!\n" +
-              "Зайдите на console.firebase.google.com -> проект -> раздел Storage -> Get Started."
-            );
+// Конвертация файла в Base64 Data URL (работает 100% бесплатно без кредитных карт!)
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    // Если это картинка — аккуратно сжимаем её в браузере, чтобы она весила мало и мгновенно летала
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 1200;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
           }
-          reject(error);
-        },
-        async () => {
-          uploadProgressBar.classList.add("hidden");
-          const downloadUrl = await uploadTask.snapshot.ref.getDownloadURL();
-          resolve(downloadUrl);
-        }
-      );
-    });
-  } catch (e) {
-    uploadProgressBar.classList.add("hidden");
-    throw e;
-  }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.8));
+        };
+        img.onerror = () => resolve(e.target.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    } else {
+      // Для аудио и небольших файлов читаем напрямую в Data URL
+      if (file.size > 850 * 1024) {
+        alert(
+          "⚠️ Google Firebase требует платную карту для файлов больше 1 МБ.\n\n" +
+          "Для больших архивов просто вставьте ссылку (Яндекс Диск, Telegram, Dropmefiles) в текст заметки — это бесплатно и без лимитов!"
+        );
+        reject(new Error("File too large for free tier"));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }
+  });
 }
 
 // =============================================================================
@@ -249,26 +258,19 @@ async function handleSaveNote(event) {
   let attachmentData = null;
 
   if (selectedFile) {
-    if (isFirebaseMode) {
-      try {
-        const fileUrl = await uploadToStorage(selectedFile);
-        attachmentData = {
-          type: selectedFileType,
-          name: selectedFile.name,
-          size: formatBytes(selectedFile.size),
-          url: fileUrl
-        };
-      } catch (err) {
-        console.warn("Не удалось сохранить в Cloud Storage:", err);
-      }
-    } else {
-      // Демо режим (локальное превью)
+    try {
+      const fileUrl = await fileToDataUrl(selectedFile);
       attachmentData = {
         type: selectedFileType,
         name: selectedFile.name,
         size: formatBytes(selectedFile.size),
-        url: URL.createObjectURL(selectedFile)
+        url: fileUrl
       };
+    } catch (err) {
+      console.warn("Файл не был сохранен:", err);
+      btnSaveNote.disabled = false;
+      btnSaveNote.textContent = "Сохранить";
+      return;
     }
   }
 
