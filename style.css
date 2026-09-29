@@ -1,5 +1,5 @@
 /* ==========================================================================
-   СТИЛИ: Google Keep Dark Mode (Строгий тёмный дизайн без свечений и неона)
+   СТИЛИ: Google Keep Dark Mode (Строгий тёмный дизайн с боковой панелью папок)
    ========================================================================== */
 
 :root {
@@ -8,7 +8,8 @@
   --bg-card: #202124;
   --bg-card-hover: #292a2d;
   --bg-input: #303134;
-  --bg-search: #303134;
+  --bg-sidebar-hover: #28292c;
+  --bg-sidebar-active: #41331c; /* Keep amber subtle tint */
 
   --border-subtle: #3c4043;
   --border-card: #5f6368;
@@ -20,16 +21,16 @@
   --text-done: #5f6368;
 
   --accent-color: #8ab4f8;
-  --accent-hover: #aecbfa;
+  --accent-yellow: #fbbc04;
   --danger-color: #f28b82;
 
-  --shadow-header: inset 0 -1px 0 0 var(--border-subtle);
-  --shadow-creator: 0 1px 2px 0 rgba(0,0,0,0.6), 0 2px 6px 2px rgba(0,0,0,0.3);
-  --shadow-card: 0 1px 3px 0 rgba(0,0,0,0.4);
-  
+  --sidebar-width: 250px;
+  --header-height: 64px;
+
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-pill: 20px;
 }
 
 *, *::before, *::after {
@@ -52,17 +53,17 @@ body {
    Верхняя панель (Header)
    -------------------------------------------------------------------------- */
 .app-header {
-  height: 64px;
-  padding: 0 24px;
+  height: var(--header-height);
+  padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   background-color: var(--bg-surface);
-  box-shadow: var(--shadow-header);
+  border-bottom: 1px solid var(--border-subtle);
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 40;
 }
 
 .header-left {
@@ -71,14 +72,33 @@ body {
   gap: 12px;
 }
 
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-icon:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
 .brand-logo {
-  color: #fbbc04;
+  color: var(--accent-yellow);
   display: flex;
   align-items: center;
 }
 
 .brand-name {
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   font-weight: 500;
   color: var(--text-primary);
   letter-spacing: -0.01em;
@@ -89,7 +109,7 @@ body {
   flex: 1;
   max-width: 680px;
   height: 46px;
-  background-color: var(--bg-search);
+  background-color: var(--bg-input);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -121,7 +141,7 @@ body {
   color: var(--text-secondary);
 }
 
-/* Статус базы данных */
+/* Статус */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -142,25 +162,201 @@ body {
   background-color: var(--text-muted);
 }
 
-.status-connected .status-dot {
-  background-color: #81c995;
-}
-.status-connected {
-  color: #81c995;
+.status-connected .status-dot { background-color: #81c995; }
+.status-connected { color: #81c995; }
+.status-demo .status-dot { background-color: #fdd663; }
+.status-demo { color: #fdd663; }
+
+/* --------------------------------------------------------------------------
+   Основной макет (Сайдбар + Контент)
+   -------------------------------------------------------------------------- */
+.app-layout {
+  display: flex;
+  flex: 1;
+  min-height: calc(100vh - var(--header-height));
+  position: relative;
 }
 
-.status-demo .status-dot {
-  background-color: #fdd663;
-}
-.status-demo {
-  color: #fdd663;
+/* Боковая панель папок */
+.app-sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease, transform 0.2s ease;
+  flex-shrink: 0;
 }
 
-.status-error .status-dot {
-  background-color: var(--danger-color);
+.sidebar-collapsed .app-sidebar {
+  width: 68px;
 }
-.status-error {
+
+.sidebar-collapsed .sidebar-label,
+.sidebar-collapsed .sidebar-section-header,
+.sidebar-collapsed .new-folder-input-wrap,
+.sidebar-collapsed .btn-delete-folder {
+  display: none !important;
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px 4px;
+}
+
+.sidebar-section-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.btn-add-folder {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.btn-add-folder:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+/* Инлайн-ввод новой папки */
+.new-folder-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  background-color: var(--bg-input);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.new-folder-input-wrap input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.new-folder-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-folder-action {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-folder-action.save { color: #81c995; }
+.btn-folder-action.cancel { color: var(--text-muted); }
+
+/* Список элементов меню */
+.folders-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 0 24px 24px 0;
+  transition: background-color 0.15s;
+  position: relative;
+}
+
+.sidebar-item:hover {
+  background-color: var(--bg-sidebar-hover);
+}
+
+.sidebar-item.active {
+  background-color: var(--bg-sidebar-active);
+  color: #feefc3;
+}
+
+.sidebar-item.active .sidebar-icon,
+.sidebar-item.active .sidebar-label {
+  color: #feefc3;
+  font-weight: 500;
+}
+
+.sidebar-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 0 24px 24px 0;
+}
+
+.sidebar-icon {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sidebar-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-delete-folder {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 1.1rem;
+  display: none;
+}
+
+.sidebar-item:hover .btn-delete-folder {
+  display: block;
+}
+
+.btn-delete-folder:hover {
   color: var(--danger-color);
+}
+
+/* Затемнение под шторку для мобилок */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 45;
 }
 
 /* --------------------------------------------------------------------------
@@ -168,13 +364,13 @@ body {
    -------------------------------------------------------------------------- */
 .main-content {
   flex: 1;
+  padding: 24px 24px 60px;
   max-width: 1300px;
-  width: 100%;
   margin: 0 auto;
-  padding: 24px 20px 60px;
+  width: 100%;
 }
 
-/* Блок создания заметки (Google Keep Style) */
+/* Блок создания заметки */
 .note-creator-wrapper {
   max-width: 580px;
   margin: 0 auto 36px;
@@ -184,21 +380,39 @@ body {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-creator);
+  box-shadow: 0 1px 2px 0 rgba(0,0,0,0.6), 0 2px 6px 2px rgba(0,0,0,0.3);
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
-  transition: all 0.2s ease;
+}
+
+.creator-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
 }
 
 .creator-title {
+  flex: 1;
   background: transparent;
   border: none;
   color: var(--text-primary);
   font-size: 1rem;
   font-weight: 600;
-  padding: 4px 0 10px;
   outline: none;
+}
+
+.folder-select-pill {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
 }
 
 .creator-text {
@@ -219,9 +433,9 @@ body {
   color: var(--text-secondary);
 }
 
-/* Превью вложений перед отправкой */
+/* Превью вложений */
 .attachment-preview-box {
-  margin-top: 12px;
+  margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-subtle);
 }
@@ -236,11 +450,6 @@ body {
   max-height: 180px;
   border-radius: var(--radius-sm);
   display: block;
-}
-
-.preview-item audio {
-  width: 100%;
-  max-width: 480px;
 }
 
 .preview-file-chip {
@@ -284,30 +493,9 @@ body {
   place-content: center;
   cursor: pointer;
   font-size: 14px;
-  line-height: 1;
 }
 
-.btn-remove-attachment:hover {
-  background: #5f6368;
-}
-
-/* Полоса загрузки файлов */
-.upload-progress-bar {
-  height: 4px;
-  background-color: var(--bg-input);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 10px;
-}
-
-.upload-progress-fill {
-  height: 100%;
-  width: 0%;
-  background-color: var(--accent-color);
-  transition: width 0.2s ease;
-}
-
-/* Нижняя панель с кнопками */
+/* Нижняя панель создания */
 .creator-actions {
   display: flex;
   align-items: center;
@@ -357,7 +545,6 @@ body {
   padding: 8px 16px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.15s;
 }
 
 .btn-primary:hover {
@@ -373,12 +560,8 @@ body {
   cursor: pointer;
 }
 
-.btn-text:hover {
-  color: var(--text-primary);
-}
-
 /* --------------------------------------------------------------------------
-   Заголовок ленты и фильтры
+   Фильтры ленты
    -------------------------------------------------------------------------- */
 .feed-header {
   display: flex;
@@ -406,12 +589,6 @@ body {
   border-radius: 16px;
   font-size: 0.8rem;
   cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.filter-chip:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
 }
 
 .filter-chip.active {
@@ -439,7 +616,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
-  position: relative;
+  cursor: pointer;
 }
 
 .note-card:hover {
@@ -447,7 +624,6 @@ body {
   box-shadow: 0 1px 3px 0 rgba(0,0,0,0.6), 0 4px 8px 3px rgba(0,0,0,0.3);
 }
 
-/* Прикреплённая картинка в карточке */
 .card-media-image {
   width: 100%;
   max-height: 280px;
@@ -457,12 +633,21 @@ body {
   border-bottom: 1px solid var(--border-subtle);
 }
 
-/* Контент карточки */
 .card-body {
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.card-folder-badge {
+  font-size: 0.72rem;
+  color: var(--accent-color);
+  background-color: rgba(138, 180, 248, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  align-self: flex-start;
+  font-weight: 500;
 }
 
 .card-title {
@@ -481,14 +666,12 @@ body {
   word-break: break-word;
 }
 
-/* Аудио внутри карточки */
 .card-audio {
   width: 100%;
   height: 38px;
   margin-top: 4px;
 }
 
-/* Документ / Архив внутри карточки */
 .card-file-box {
   display: flex;
   align-items: center;
@@ -540,7 +723,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, background-color 0.15s;
 }
 
 .btn-file-download:hover {
@@ -548,7 +730,7 @@ body {
   background-color: rgba(255, 255, 255, 0.08);
 }
 
-/* Нижняя панель карточки */
+/* Подвал карточки */
 .card-footer {
   display: flex;
   align-items: center;
@@ -558,8 +740,7 @@ body {
   transition: opacity 0.15s ease;
 }
 
-.note-card:hover .card-footer,
-.note-card:focus-within .card-footer {
+.note-card:hover .card-footer {
   opacity: 1;
 }
 
@@ -569,7 +750,6 @@ body {
   gap: 10px;
 }
 
-/* Круглый Google Keep чекбокс */
 .card-checkbox {
   appearance: none;
   -webkit-appearance: none;
@@ -581,7 +761,6 @@ body {
   cursor: pointer;
   display: grid;
   place-content: center;
-  transition: all 0.15s;
 }
 
 .card-checkbox:checked {
@@ -599,7 +778,6 @@ body {
   margin-top: -1px;
 }
 
-/* Состояние завершенной заметки */
 .note-card.is-completed {
   opacity: 0.5;
 }
@@ -610,7 +788,6 @@ body {
   color: var(--text-done);
 }
 
-/* Кнопка удаления */
 .btn-card-delete {
   background: transparent;
   border: none;
@@ -621,12 +798,206 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, background-color 0.15s;
 }
 
 .btn-card-delete:hover {
   color: var(--danger-color);
   background-color: rgba(242, 139, 130, 0.1);
+}
+
+/* --------------------------------------------------------------------------
+   МОДАЛЬНОЕ ОКНО РЕДАКТИРОВАНИЯ (Google Keep Style)
+   -------------------------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 100;
+  backdrop-filter: blur(2px);
+}
+
+.edit-modal-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  max-width: 620px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+
+.edit-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 8px;
+}
+
+.editor-save-status {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.edit-modal-body {
+  padding: 0 18px 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor-title-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  font-weight: 600;
+  outline: none;
+  width: 100%;
+}
+
+.editor-text-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  width: 100%;
+  min-height: 120px;
+  line-height: 1.6;
+}
+
+.editor-media-image-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-img-preview {
+  max-height: 320px;
+  width: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background-color: #121316;
+}
+
+.editor-media-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-tool-action {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.btn-tool-action:hover {
+  background-color: #3e4044;
+}
+
+.btn-danger-action {
+  color: var(--danger-color);
+  border-color: rgba(242, 139, 130, 0.3);
+}
+
+.edit-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface);
+}
+
+/* --------------------------------------------------------------------------
+   МОДАЛЬНОЕ ОКНО LIGHTBOX (Просмотр и Скачивание)
+   -------------------------------------------------------------------------- */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.92);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+}
+
+.lightbox-toolbar {
+  height: 60px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-btn {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.15s;
+}
+
+.lightbox-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.lightbox-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.lightbox-content img {
+  max-width: 95vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+}
+
+/* --------------------------------------------------------------------------
+   Мобильная плавающая кнопка FAB (+)
+   -------------------------------------------------------------------------- */
+.mobile-fab {
+  display: none;
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: var(--accent-yellow);
+  color: #202124;
+  border: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  z-index: 35;
+  align-items: center;
+  justify-content: center;
 }
 
 /* --------------------------------------------------------------------------
@@ -657,32 +1028,55 @@ body {
   margin: 0 auto;
 }
 
-/* --------------------------------------------------------------------------
-   Утилиты и адаптивность
-   -------------------------------------------------------------------------- */
 .hidden {
   display: none !important;
 }
 
+/* --------------------------------------------------------------------------
+   Адаптивность для телефонов и планшетов
+   -------------------------------------------------------------------------- */
 @media (max-width: 900px) {
   .notes-grid {
     columns: 220px 3;
   }
 }
 
-@media (max-width: 650px) {
-  .app-header {
-    padding: 0 12px;
+@media (max-width: 768px) {
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    z-index: 50;
+    transform: translateX(-100%);
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.7);
   }
+
+  .app-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay.active {
+    display: block;
+  }
+
   .brand-name {
     display: none;
   }
+
   .search-bar {
     max-width: 100%;
   }
+
   .notes-grid {
     columns: 1;
   }
+
+  .mobile-fab {
+    display: flex;
+  }
+
   .card-footer {
     opacity: 1;
   }
