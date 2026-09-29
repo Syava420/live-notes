@@ -1,5 +1,5 @@
 // =============================================================================
-// МОДУЛЬ ПАПОК И ВЫДВИЖНОЙ ШТОРКИ (js/folders.js)
+// МОДУЛЬ ПАПОК, АРХИВА И КОРЗИНЫ (js/folders.js)
 // =============================================================================
 
 const appDrawer = document.getElementById("app-drawer");
@@ -11,6 +11,7 @@ const drawerNewFolderWrap = document.getElementById("drawer-new-folder-wrap");
 const inputNewFolderName = document.getElementById("input-new-folder-name");
 const btnSaveFolderName = document.getElementById("btn-save-folder-name");
 const btnCancelFolderName = document.getElementById("btn-cancel-folder-name");
+const foldersChipTrack = document.getElementById("folders-chip-track");
 const foldersChipList = document.getElementById("folders-chip-list");
 
 function initFoldersModule() {
@@ -19,16 +20,15 @@ function initFoldersModule() {
   if (window.AppState.isFirebaseMode) {
     listenToFolders();
   } else {
-    const saved = localStorage.getItem("app_folders_v2");
+    const saved = localStorage.getItem("app_folders_v3");
     window.AppState.folders = saved ? JSON.parse(saved) : [
       { id: "work", name: "Работа" },
-      { id: "personal", name: "Личное" }
+      { id: "ideas", name: "Идеи" }
     ];
     renderAllFolderViews();
   }
 }
 
-// Слушатель Firestore
 function listenToFolders() {
   window.AppState.db.collection("folders").orderBy("createdAt", "asc").onSnapshot(
     (snapshot) => {
@@ -43,7 +43,6 @@ function listenToFolders() {
   );
 }
 
-// Создание папки
 async function createFolder(name) {
   const clean = name.trim();
   if (!clean) return;
@@ -59,12 +58,11 @@ async function createFolder(name) {
     }
   } else {
     window.AppState.folders.push({ id: "folder-" + Date.now(), name: clean });
-    localStorage.setItem("app_folders_v2", JSON.stringify(window.AppState.folders));
+    localStorage.setItem("app_folders_v3", JSON.stringify(window.AppState.folders));
     renderAllFolderViews();
   }
 }
 
-// Удаление папки
 async function deleteFolder(folderId) {
   if (!confirm("Удалить эту папку? Заметки останутся в общем списке.")) return;
 
@@ -72,7 +70,7 @@ async function deleteFolder(folderId) {
     await window.AppState.db.collection("folders").doc(folderId).delete();
   } else {
     window.AppState.folders = window.AppState.folders.filter((f) => f.id !== folderId);
-    localStorage.setItem("app_folders_v2", JSON.stringify(window.AppState.folders));
+    localStorage.setItem("app_folders_v3", JSON.stringify(window.AppState.folders));
     renderAllFolderViews();
   }
 
@@ -88,31 +86,30 @@ function setActiveFolder(folderId) {
   closeDrawer();
 }
 
-// Отрисовка папок (и в выдвижной шторке, и в горизонтальных чипах над заметками)
 function renderAllFolderViews() {
   renderDrawer();
   renderHorizontalChips();
   updateEditorFolderSelect();
 }
 
-// 1. Выдвижная шторка
+// Выдвижная шторка
 function renderDrawer() {
   if (!drawerFoldersList) return;
   drawerFoldersList.innerHTML = "";
 
-  // Все заметки
-  const allItem = createDrawerItem("all", "Все заметки", "📝", true);
-  drawerFoldersList.appendChild(allItem);
+  // 1. Все заметки
+  drawerFoldersList.appendChild(createDrawerItem("all", "Все заметки", "📝", true));
 
-  // Пользовательские папки
+  // 2. Пользовательские папки
   window.AppState.folders.forEach((f) => {
-    const item = createDrawerItem(f.id, f.name, "📁", false);
-    drawerFoldersList.appendChild(item);
+    drawerFoldersList.appendChild(createDrawerItem(f.id, f.name, "📁", false));
   });
 
-  // Корзина
-  const trashItem = createDrawerItem("trash", "Корзина", "🗑️", true);
-  drawerFoldersList.appendChild(trashItem);
+  // 3. Архив
+  drawerFoldersList.appendChild(createDrawerItem("archive", "Архив", "📦", true));
+
+  // 4. Корзина
+  drawerFoldersList.appendChild(createDrawerItem("trash", "Корзина", "🗑️", true));
 }
 
 function createDrawerItem(id, name, emoji, isPermanent) {
@@ -141,21 +138,26 @@ function createDrawerItem(id, name, emoji, isPermanent) {
   return li;
 }
 
-// 2. Горизонтальные чипы над списком (для быстрого свайпа пальцем)
+// Горизонтальные чипы
 function renderHorizontalChips() {
-  if (!foldersChipList) return;
-  foldersChipList.innerHTML = "";
+  if (!foldersChipList || !foldersChipTrack) return;
 
-  const allChip = createChip("all", "Все");
-  foldersChipList.appendChild(allChip);
+  // Проверка настройки: скрывать ли ленту
+  if (!window.AppSettings.showFolderChips) {
+    foldersChipTrack.classList.add("hidden");
+    return;
+  }
+  foldersChipTrack.classList.remove("hidden");
+
+  foldersChipList.innerHTML = "";
+  foldersChipList.appendChild(createChip("all", "Все"));
 
   window.AppState.folders.forEach((f) => {
-    const chip = createChip(f.id, f.name);
-    foldersChipList.appendChild(chip);
+    foldersChipList.appendChild(createChip(f.id, f.name));
   });
 
-  const trashChip = createChip("trash", "Корзина");
-  foldersChipList.appendChild(trashChip);
+  foldersChipList.appendChild(createChip("archive", "Архив"));
+  foldersChipList.appendChild(createChip("trash", "Корзина"));
 }
 
 function createChip(id, name) {
@@ -167,7 +169,6 @@ function createChip(id, name) {
   return btn;
 }
 
-// 3. Выпадающий список папок в Редакторе
 function updateEditorFolderSelect() {
   const sel = document.getElementById("editor-folder-select");
   if (!sel) return;
@@ -182,7 +183,6 @@ function updateEditorFolderSelect() {
   if (currentVal) sel.value = currentVal;
 }
 
-// Шторка
 function openDrawer() {
   appDrawer.classList.add("open");
   drawerOverlay.classList.add("active");
