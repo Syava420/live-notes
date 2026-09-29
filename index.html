@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0d0f14">
-  <title>Живой Блокнот — Real-time Notepad</title>
+  <meta name="theme-color" content="#202124">
+  <title>Живой Блокнот — Keep Style</title>
   
   <!-- Шрифт Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,134 +13,164 @@
   
   <link rel="stylesheet" href="style.css">
   
-  <!-- Firebase SDK (Compat версия через официальный Google CDN) -->
-  <!-- Работает сразу из коробки: и локально при клике на файл, и на GitHub Pages / Vercel -->
+  <!-- Firebase SDK (App, Firestore и Cloud Storage для картинок, аудио и архивов) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 </head>
 <body>
 
-  <!-- Фоновое неоновое свечение -->
-  <div class="ambient-glow" aria-hidden="true"></div>
-
-  <main class="app-container">
-    
-    <!-- Шапка приложения -->
-    <header class="app-header">
-      <div class="brand">
-        <div class="brand-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-            <polyline points="10 9 9 9 8 9"></polyline>
-          </svg>
-        </div>
-        <div>
-          <h1 class="app-title">Живой Блокнот</h1>
-          <p class="app-subtitle">Мгновенная синхронизация заметок</p>
-        </div>
+  <!-- Верхняя панель (Google Keep Style) -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="brand-logo" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/>
+        </svg>
       </div>
-
-      <!-- Индикатор статуса соединения -->
-      <div id="status-pill" class="status-pill status-connecting" title="Статус синхронизации">
-        <span class="status-dot"></span>
-        <span id="status-text" class="status-text">Подключение...</span>
-      </div>
-    </header>
-
-    <!-- Предупреждение / баннер (если ключи Firebase еще не вставлены) -->
-    <div id="banner-notice" class="banner-notice hidden">
-      <div class="banner-content">
-        <span class="banner-icon">⚡</span>
-        <div class="banner-text">
-          <strong>Включён демо-режим.</strong> Заметки сохраняются в браузере. Для синхронизации между ПК и телефоном подключите Firebase по инструкции.
-        </div>
-      </div>
-      <button id="btn-open-guide" class="banner-btn" type="button">Инструкция</button>
+      <h1 class="brand-name">Заметки</h1>
     </div>
 
-    <!-- Панель счетчика и фильтрации -->
-    <section class="stats-card">
-      <div class="counter-item">
-        <span class="counter-label">Осталось сделать:</span>
-        <span id="remaining-count" class="counter-value">0</span>
-      </div>
-      <div class="counter-item">
-        <span class="counter-label">Всего заметок:</span>
-        <span id="total-count" class="counter-value-muted">0</span>
-      </div>
-    </section>
+    <!-- Поисковая строка -->
+    <div class="search-bar">
+      <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" id="search-input" placeholder="Поиск в заметках..." autocomplete="off">
+    </div>
 
-    <!-- Форма ввода новой заметки -->
-    <form id="note-form" class="note-form" autocomplete="off">
-      <div class="input-wrapper">
+    <div class="header-right">
+      <!-- Индикатор синхронизации -->
+      <div id="status-pill" class="status-pill status-connecting" title="Статус базы данных">
+        <span class="status-dot"></span>
+        <span id="status-text">Синхронизация...</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+    
+    <!-- Поле ввода заметки (Раскрывающееся Google Keep Style) -->
+    <div class="note-creator-wrapper">
+      <form id="note-creator" class="note-creator" autocomplete="off">
+        
+        <!-- Заголовок (виден в раскрытом виде) -->
         <input 
           type="text" 
-          id="note-input" 
-          class="note-input" 
-          placeholder="Что нужно сделать или записать?.." 
-          maxlength="200"
-          required
+          id="creator-title" 
+          class="creator-title hidden" 
+          placeholder="Заголовок" 
+          maxlength="120"
         >
-      </div>
-      <button type="submit" id="add-btn" class="btn-submit">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        <span>Добавить</span>
-      </button>
-    </form>
 
-    <!-- Список заметок -->
-    <section class="list-section">
-      <ul id="notes-list" class="notes-list" aria-live="polite"></ul>
+        <!-- Текст заметки -->
+        <textarea 
+          id="creator-text" 
+          class="creator-text" 
+          placeholder="Заметка..." 
+          rows="1"
+          required
+        ></textarea>
 
-      <!-- Состояние пустого списка -->
-      <div id="empty-state" class="empty-state">
-        <div class="empty-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="m9 12 2 2 4-4"></path>
-          </svg>
+        <!-- Предпросмотр прикреплённого вложения -->
+        <div id="attachment-preview-box" class="attachment-preview-box hidden">
+          <!-- Картинка -->
+          <div id="preview-image-wrap" class="preview-item hidden">
+            <img id="preview-image" alt="Предпросмотр картинки">
+            <button type="button" class="btn-remove-attachment" id="btn-remove-attachment" title="Удалить файл">&times;</button>
+          </div>
+          <!-- Аудио -->
+          <div id="preview-audio-wrap" class="preview-item hidden">
+            <audio id="preview-audio" controls></audio>
+            <button type="button" class="btn-remove-attachment" id="btn-remove-audio" title="Удалить аудио">&times;</button>
+          </div>
+          <!-- Документ / Архив -->
+          <div id="preview-file-wrap" class="preview-item preview-file-chip hidden">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <div class="file-desc">
+              <span id="preview-file-name" class="name">archive.zip</span>
+              <span id="preview-file-size" class="size">0 MB</span>
+            </div>
+            <button type="button" class="btn-remove-attachment" id="btn-remove-file" title="Удалить файл">&times;</button>
+          </div>
         </div>
-        <p class="empty-title">Заметок пока нет</p>
-        <p class="empty-desc">Напишите что-нибудь выше и нажмите Enter — заметка сразу появится тут и на всех ваших устройствах!</p>
-      </div>
-    </section>
 
-  </main>
+        <!-- Полоса прогресса загрузки в облако -->
+        <div id="upload-progress-bar" class="upload-progress-bar hidden">
+          <div id="upload-progress-fill" class="upload-progress-fill"></div>
+        </div>
 
-  <!-- Всплывающее модальное окно с инструкцией (для удобства прямо в интерфейсе) -->
-  <div id="guide-modal" class="modal-backdrop hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2 class="modal-title">Как подключить Firebase за 1 минуту</h2>
-        <button id="btn-close-modal" class="btn-close" type="button" aria-label="Закрыть">&times;</button>
-      </div>
-      <div class="modal-body">
-        <ol class="guide-steps">
-          <li>
-            <strong>Создайте проект:</strong> Зайдите на <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a>, нажмите <em>«Добавить проект»</em>, введите любое имя (например, <code>my-notes</code>) и нажмите «Продолжить».
-          </li>
-          <li>
-            <strong>Включите базу Firestore:</strong> В левом меню нажмите <em>«Сборка» &rarr; «База данных Firestore»</em> &rarr; <em>«Создать базу данных»</em>. Выберите <em>«Тестовый режим»</em> (Test Mode), чтобы база разрешала чтение и запись.
-          </li>
-          <li>
-            <strong>Получите ключи:</strong> На главной странице проекта нажмите иконку веб-приложения <code>&lt;/&gt;</code> (Веб), зарегистрируйте приложение. Внизу появится объект <code>firebaseConfig</code>.
-          </li>
-          <li>
-            <strong>Вставьте в код:</strong> Откройте файл <code>app.js</code> и замените шаблонные строчки в объекте <code>firebaseConfig</code> на ваши ключи. Готово!
-          </li>
-        </ol>
-      </div>
-      <div class="modal-footer">
-        <button id="btn-modal-ok" class="banner-btn" type="button">Понятно, спасибо!</button>
+        <!-- Нижняя панель действий создания заметки -->
+        <div id="creator-actions" class="creator-actions hidden">
+          <div class="action-tools">
+            <!-- Кнопка картинки -->
+            <label class="tool-btn" title="Прикрепить изображение">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              <input type="file" id="input-image" accept="image/*" class="file-input-hidden">
+            </label>
+
+            <!-- Кнопка аудио -->
+            <label class="tool-btn" title="Прикрепить аудиофайл (mp3, wav)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+              <input type="file" id="input-audio" accept="audio/*" class="file-input-hidden">
+            </label>
+
+            <!-- Кнопка файла / архива -->
+            <label class="tool-btn" title="Прикрепить архив или документ (zip, rar, pdf, doc)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+              </svg>
+              <input type="file" id="input-file" class="file-input-hidden">
+            </label>
+          </div>
+
+          <div class="action-buttons">
+            <button type="submit" id="btn-save-note" class="btn-primary">Сохранить</button>
+            <button type="button" id="btn-close-creator" class="btn-text">Закрыть</button>
+          </div>
+        </div>
+
+      </form>
+    </div>
+
+    <!-- Информационная строка счетчиков -->
+    <div class="feed-header">
+      <span id="counter-summary" class="counter-summary">Загрузка заметок...</span>
+      <div class="filter-chips">
+        <button type="button" class="filter-chip active" data-filter="all">Все</button>
+        <button type="button" class="filter-chip" data-filter="active">В процессе</button>
+        <button type="button" class="filter-chip" data-filter="media">С файлами</button>
       </div>
     </div>
-  </div>
+
+    <!-- Сетка заметок (Google Keep Masonry Grid) -->
+    <div id="notes-grid" class="notes-grid"></div>
+
+    <!-- Состояние пустого списка -->
+    <div id="empty-state" class="empty-state hidden">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="12" y1="18" x2="12" y2="12"></line>
+        <line x1="9" y1="15" x2="15" y2="15"></line>
+      </svg>
+      <p class="empty-title">Здесь пока пусто</p>
+      <p class="empty-subtitle">Нажмите выше, чтобы создать заметку, прикрепить архив, аудио или картинку</p>
+    </div>
+
+  </main>
 
   <script src="app.js"></script>
 </body>
